@@ -1,2 +1,2 @@
 # pg_set_acl
-PostgreSQL SET command access control list
+PostgreSQL extension that implements a SET command access control list.
