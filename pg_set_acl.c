@@ -44,6 +44,7 @@
 #include "utils/catcache.h"
 #include "utils/syscache.h"
 #include "catalog/pg_proc.h"
+#include "executor/spi.h"
 
 PG_MODULE_MAGIC;
 
@@ -87,6 +88,7 @@ static void pgsa_object_access_hook(ObjectAccessType access,
 				    int subId,
 				    void *arg);
 
+PG_FUNCTION_INFO_V1(pgsa_grant);
 
 /*
  * Module load callback
@@ -269,4 +271,32 @@ pgsa_object_access_hook(ObjectAccessType access,
 	if (superuser() == false && access == OAT_FUNCTION_EXECUTE && objectId == functionOid)
 		elog(ERROR, "pg_set_acl: execution permission denied for set_config. ");
 
+}
+
+static bool pgsa_grant_internal(char *parameter_name, char *user_name)
+{
+	StringInfoData 	buf_insert;
+	int	ret_code;
+	initStringInfo(&buf_insert);
+	appendStringInfo(&buf_insert, "INSERT INTO pg_set_acl(parameter_name, user_name)");
+	appendStringInfo(&buf_insert, " values('%s','%s')", parameter_name, user_name);
+
+	SPI_connect();
+	ret_code = SPI_execute(buf_insert.data, false, 0);
+
+	if (ret_code != SPI_OK_INSERT)
+		elog(FATAL, "INSERT failed: %d", ret_code);			               
+
+	SPI_finish();
+
+}
+
+Datum pgsa_grant(PG_FUNCTION_ARGS)
+{
+	char *parameter_name;
+	char *user_name;
+
+	parameter_name = PG_GETARG_CSTRING(0);
+        user_name = PG_GETARG_CSTRING(1);
+        return (pgsa_grant_internal(parameter_name, user_name));
 }
