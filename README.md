@@ -1,2 +1,2 @@
 # pg_set_acl
-PostgreSQL set statement access control list
+PostgreSQL SET command access control list
