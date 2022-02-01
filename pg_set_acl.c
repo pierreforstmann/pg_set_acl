@@ -6,7 +6,7 @@
  * This program is open source, licensed under the PostgreSQL license.
  * For license terms, see the LICENSE file.
  *          
- * Copyright (c) 2020, 2021, 2022 Pierre Forstmann.
+ * Copyright (c) 2022 Pierre Forstmann.
  *            
  *-------------------------------------------------------------------------
 */
@@ -45,6 +45,7 @@
 #include "utils/syscache.h"
 #include "catalog/pg_proc.h"
 #include "executor/spi.h"
+#include "miscadmin.h"
 
 PG_MODULE_MAGIC;
 
@@ -176,8 +177,25 @@ pgsa_exec(
 		setstmt = (VariableSetStmt *)parsetree;
 		if (setstmt->kind == VAR_SET_VALUE || setstmt->kind == VAR_SET_CURRENT)
 		{
+			StringInfoData buf_select_acl;
+			int ret_code;
 
 			elog(DEBUG1, "pg_set_acl pgsa_exec: setstmt->name=%s", setstmt->name);
+			initStringInfo(&buf_select_acl);
+                        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = '%s' and user_name = '%s'",
+                                         setstmt->name ,
+                                         GetUserNameFromId(GetUserId(), false));
+			SPI_connect();
+			ret_code = SPI_execute(buf_select_acl.data, false, 0);
+		        if (ret_code != SPI_OK_SELECT)
+                		elog(ERROR, "SELECT FROM pg_set_acl failed");
+		        if (SPI_processed == 0)
+		                elog(ERROR, "pg_set_actl: permission denied for (%s,%s)",
+					    setstmt->name, 
+					    GetUserNameFromId(GetUserId(), false));
+
+			SPI_finish();
+
 		}
 	}
 
