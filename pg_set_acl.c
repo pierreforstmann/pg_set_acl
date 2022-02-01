@@ -276,18 +276,53 @@ pgsa_object_access_hook(ObjectAccessType access,
 static bool pgsa_grant_internal(char *parameter_name, char *user_name)
 {
 	StringInfoData 	buf_insert;
+	StringInfoData 	buf_select_parameter;
+	StringInfoData 	buf_select_user;
+	StringInfoData 	buf_select_acl;
 	int	ret_code;
+
+	initStringInfo(&buf_select_parameter);
+	appendStringInfo(&buf_select_parameter, "SELECT name FROM pg_settings WHERE name = '%s' ", parameter_name);
+
+	initStringInfo(&buf_select_user);
+	appendStringInfo(&buf_select_user, "SELECT rolname FROM pg_authid WHERE rolname = '%s' and rolcanlogin = true", user_name);
+
+	initStringInfo(&buf_select_acl);
+	appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = '%s' and user_name = '%s'", 
+			                  parameter_name,
+					  user_name);
+
 	initStringInfo(&buf_insert);
 	appendStringInfo(&buf_insert, "INSERT INTO pg_set_acl(parameter_name, user_name)");
-	appendStringInfo(&buf_insert, " values('%s','%s')", parameter_name, user_name);
+	appendStringInfo(&buf_insert, " VALUES('%s','%s')", parameter_name, user_name);
 
 	SPI_connect();
+
+	ret_code = SPI_execute(buf_select_parameter.data, false, 0);
+	if (ret_code != SPI_OK_SELECT)
+		elog(ERROR, "SELECT FROM pg_settings failed");
+	if (SPI_processed != 1)
+		elog(ERROR, "Cannot find setting %s", parameter_name);
+
+	ret_code = SPI_execute(buf_select_user.data, false, 0);
+	if (ret_code != SPI_OK_SELECT)
+		elog(ERROR, "SELECT FROM pg_authid failed");
+	if (SPI_processed != 1)
+		elog(ERROR, "Cannot find user %s", user_name);
+
+	ret_code = SPI_execute(buf_select_acl.data, false, 0);
+	if (ret_code != SPI_OK_SELECT)
+		elog(ERROR, "SELECT FROM pg_set_acl failed");
+	if (SPI_processed != 0)
+		elog(ERROR, "ACL already exist for (%s,%s)", parameter_name, user_name);
+
+
 	ret_code = SPI_execute(buf_insert.data, false, 0);
-
 	if (ret_code != SPI_OK_INSERT)
-		elog(FATAL, "INSERT failed: %d", ret_code);			               
-
+		elog(ERROR, "INSERT failed: %d", ret_code);			
 	SPI_finish();
+
+	return true;
 
 }
 
