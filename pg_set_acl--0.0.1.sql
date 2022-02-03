@@ -5,6 +5,8 @@ DROP TABLE IF EXISTS pg_set_acl;
 DROP FUNCTION IF EXISTS pgsa_grant;
 DROP FUNCTION IF EXISTS pgsa_revoke;
 --
+DROP FUNCTION IF EXISTS pgsa_read_acl;
+--
 CREATE TABLE public.pg_set_acl
 (
 	privilege	text default 'SET',
@@ -20,5 +22,9 @@ CREATE FUNCTION pgsa_grant(cstring, cstring) RETURNS bool
 --
 CREATE FUNCTION pgsa_revoke(cstring, cstring) RETURNS bool
  AS 'pg_set_acl.so', 'pgsa_revoke'
+ LANGUAGE C STRICT;
+--
+CREATE FUNCTION pgsa_read_acl(cstring, cstring) RETURNS bool
+ AS 'pg_set_acl.so', 'pgsa_read_acl'
  LANGUAGE C STRICT;
 --

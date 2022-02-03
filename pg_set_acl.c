@@ -46,6 +46,7 @@
 #include "catalog/pg_proc.h"
 #include "executor/spi.h"
 #include "miscadmin.h"
+#include "utils/builtins.h"
 
 PG_MODULE_MAGIC;
 
@@ -91,6 +92,7 @@ static void pgsa_object_access_hook(ObjectAccessType access,
 
 PG_FUNCTION_INFO_V1(pgsa_grant);
 PG_FUNCTION_INFO_V1(pgsa_revoke);
+PG_FUNCTION_INFO_V1(pgsa_read_acl);
 
 /*
  * Module load callback
@@ -420,3 +422,46 @@ Datum pgsa_revoke(PG_FUNCTION_ARGS)
         user_name = PG_GETARG_CSTRING(1);
         return (pgsa_revoke_internal(parameter_name, user_name));
 }
+
+
+
+
+static bool pgsa_read_acl_internal(char *parameter_name, char *user_name)
+{
+
+	StringInfoData buf_select_acl;
+	Oid argtypes[2] = { TEXTOID, TEXTOID };
+	SPIPlanPtr plan_ptr;
+	Datum values[2];
+	int ret_code;
+
+        initStringInfo(&buf_select_acl);
+        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = $1 and user_name = $2");
+
+        SPI_connect();
+
+        plan_ptr = SPI_prepare(buf_select_acl.data, 2, argtypes);
+	values[0] = CStringGetTextDatum(parameter_name);
+	values[1] = CStringGetTextDatum(user_name);
+	ret_code = SPI_execute_plan(plan_ptr, values, NULL, false, 0);
+        if (ret_code != SPI_OK_SELECT)
+                  elog(ERROR, "SELECT FROM pg_set_acl failed");
+        if (SPI_processed == 0)
+                elog(INFO, "pg_set_actl: acl not found for (%s,%s)", parameter_name, user_name);
+        if (SPI_processed == 1)
+                elog(INFO,  "pg_set_actl: acl found for (%s,%s)", parameter_name, user_name);
+
+        SPI_finish();
+	return true;
+}
+
+Datum pgsa_read_acl(PG_FUNCTION_ARGS)
+{
+        char *parameter_name;
+        char *user_name;
+
+        parameter_name = PG_GETARG_CSTRING(0);
+        user_name = PG_GETARG_CSTRING(1);
+        return (pgsa_read_acl_internal(parameter_name, user_name));
+}
+
