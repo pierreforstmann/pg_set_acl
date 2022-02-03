@@ -90,6 +90,7 @@ static void pgsa_object_access_hook(ObjectAccessType access,
 				    void *arg);
 
 PG_FUNCTION_INFO_V1(pgsa_grant);
+PG_FUNCTION_INFO_V1(pgsa_revoke);
 
 /*
  * Module load callback
@@ -352,4 +353,70 @@ Datum pgsa_grant(PG_FUNCTION_ARGS)
 	parameter_name = PG_GETARG_CSTRING(0);
         user_name = PG_GETARG_CSTRING(1);
         return (pgsa_grant_internal(parameter_name, user_name));
+}
+
+
+
+static bool pgsa_revoke_internal(char *parameter_name, char *user_name)
+{
+        StringInfoData  buf_delete;
+        StringInfoData  buf_select_parameter;
+        StringInfoData  buf_select_user;
+        StringInfoData  buf_select_acl;
+        int     ret_code;
+
+        initStringInfo(&buf_select_parameter);
+        appendStringInfo(&buf_select_parameter, "SELECT name FROM pg_settings WHERE name = '%s' ", parameter_name);
+
+        initStringInfo(&buf_select_user);
+        appendStringInfo(&buf_select_user, "SELECT rolname FROM pg_authid WHERE rolname = '%s' and rolcanlogin = true", user_name);
+
+        initStringInfo(&buf_select_acl);
+        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = '%s' and user_name = '%s'", 
+                                          parameter_name,
+                                          user_name);
+
+        initStringInfo(&buf_delete);
+        appendStringInfo(&buf_delete, "DELETE FROM pg_set_acl WHERE parameter_name='%s' and user_name='%s'", parameter_name, user_name);
+
+        SPI_connect();
+
+        ret_code = SPI_execute(buf_select_parameter.data, false, 0); 
+        if (ret_code != SPI_OK_SELECT)
+                elog(ERROR, "SELECT FROM pg_settings failed");
+        if (SPI_processed != 1)
+                elog(ERROR, "Cannot find setting %s", parameter_name);
+
+        ret_code = SPI_execute(buf_select_user.data, false, 0);
+        if (ret_code != SPI_OK_SELECT)
+                elog(ERROR, "SELECT FROM pg_authid failed");
+        if (SPI_processed != 1)
+                elog(ERROR, "Cannot find user %s", user_name);
+
+        ret_code = SPI_execute(buf_select_acl.data, false, 0);
+        if (ret_code != SPI_OK_SELECT)
+                elog(ERROR, "SELECT FROM pg_set_acl failed");
+        if (SPI_processed != 1)
+                elog(ERROR, "Cannot find ACL for (%s,%s)", parameter_name, user_name);
+
+
+        ret_code = SPI_execute(buf_delete.data, false, 0);
+        if (ret_code != SPI_OK_DELETE)
+                elog(ERROR, "DELETE failed: %d", ret_code);
+        SPI_finish();
+
+        return true;
+
+}
+
+
+
+Datum pgsa_revoke(PG_FUNCTION_ARGS)
+{
+	char *parameter_name;
+	char *user_name;
+
+	parameter_name = PG_GETARG_CSTRING(0);
+        user_name = PG_GETARG_CSTRING(1);
+        return (pgsa_revoke_internal(parameter_name, user_name));
 }
