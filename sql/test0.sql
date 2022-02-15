@@ -2,6 +2,9 @@ drop extension if exists pg_set_acl;
 --
 create extension pg_set_acl;
 --
+select pgsa_grant('s','u');
+select pgsa_grant('work_mem','u');
+--
 create user test;
 --
 select pgsa_grant('work_mem','test');

@@ -3,6 +3,11 @@ NOTICE:  extension "pg_set_acl" does not exist, skipping
 --
 create extension pg_set_acl;
 --
+select pgsa_grant('s','u');
+ERROR:  Cannot find setting s
+select pgsa_grant('work_mem','u');
+ERROR:  Cannot find user u
+--
 create user test;
 --
 select pgsa_grant('work_mem','test');
