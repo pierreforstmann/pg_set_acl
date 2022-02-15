@@ -1,3 +1,7 @@
+--
+create user postgres superuser;
+--
+\c contrib_regression postgres
 drop extension if exists pg_set_acl;
 NOTICE:  extension "pg_set_acl" does not exist, skipping
 --
@@ -10,6 +14,11 @@ ERROR:  Cannot find user u
 --
 create user test;
 --
+\c contrib_regression test
+set work_mem='1GB';
+ERROR:  pg_set_actl: permission denied for (work_mem,test)
+--
+\c contrib_regression postgres 
 select pgsa_grant('work_mem','test');
  pgsa_grant 
 ------------
@@ -22,6 +31,17 @@ select * from pg_set_acl;
  SET       | work_mem       | test
 (1 row)
 
+--
+\c contrib_regression test
+set work_mem='1GB';
+show work_mem;
+ work_mem 
+----------
+ 1GB
+(1 row)
+
+--
+\c contrib_regression postgres
 select pgsa_revoke('work_mem','test');
  pgsa_revoke 
 -------------
@@ -29,4 +49,10 @@ select pgsa_revoke('work_mem','test');
 (1 row)
 
 --
+\c contrib_regression test
+set work_mem='1GB';
+ERROR:  pg_set_actl: permission denied for (work_mem,test)
+--
+\c contrib_regression postgres
 drop extension pg_set_acl;
+--
