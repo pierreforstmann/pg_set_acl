@@ -7,25 +7,25 @@ NOTICE:  extension "pg_set_acl" does not exist, skipping
 --
 create extension pg_set_acl;
 --
-select pgsa_grant('s','u');
+select set_acl.grant('s','u');
 ERROR:  Cannot find setting s
-select pgsa_grant('work_mem','u');
+select set_acl.grant('work_mem','u');
 ERROR:  Cannot find user u
 --
 create user test;
 --
 \c contrib_regression test
 set work_mem='1GB';
-ERROR:  pg_set_actl: permission denied for (work_mem,test)
+ERROR:  pg_set_acl: permission denied for (work_mem,test)
 --
 \c contrib_regression postgres 
-select pgsa_grant('work_mem','test');
- pgsa_grant 
-------------
+select set_acl.grant('work_mem','test');
+ grant 
+-------
  t
 (1 row)
 
-select * from pg_set_acl;
+select * from set_acl.privs;
  privilege | parameter_name | user_name 
 -----------+----------------+-----------
  SET       | work_mem       | test
@@ -42,16 +42,16 @@ show work_mem;
 
 --
 \c contrib_regression postgres
-select pgsa_revoke('work_mem','test');
- pgsa_revoke 
--------------
+select set_acl.revoke('work_mem','test');
+ revoke 
+--------
  t
 (1 row)
 
 --
 \c contrib_regression test
 set work_mem='1GB';
-ERROR:  pg_set_actl: permission denied for (work_mem,test)
+ERROR:  pg_set_acl: permission denied for (work_mem,test)
 --
 \c contrib_regression postgres
 drop extension pg_set_acl;

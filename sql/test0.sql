@@ -6,8 +6,8 @@ drop extension if exists pg_set_acl;
 --
 create extension pg_set_acl;
 --
-select pgsa_grant('s','u');
-select pgsa_grant('work_mem','u');
+select set_acl.grant('s','u');
+select set_acl.grant('work_mem','u');
 --
 create user test;
 --
@@ -15,15 +15,15 @@ create user test;
 set work_mem='1GB';
 --
 \c contrib_regression postgres 
-select pgsa_grant('work_mem','test');
-select * from pg_set_acl;
+select set_acl.grant('work_mem','test');
+select * from set_acl.privs;
 --
 \c contrib_regression test
 set work_mem='1GB';
 show work_mem;
 --
 \c contrib_regression postgres
-select pgsa_revoke('work_mem','test');
+select set_acl.revoke('work_mem','test');
 --
 \c contrib_regression test
 set work_mem='1GB';

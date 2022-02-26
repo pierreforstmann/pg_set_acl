@@ -185,7 +185,7 @@ pgsa_exec(
 
 			elog(DEBUG1, "pg_set_acl pgsa_exec: setstmt->name=%s", setstmt->name);
 			initStringInfo(&buf_select_acl);
-                        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = '%s' and user_name = '%s'",
+                        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = '%s' and user_name = '%s'",
                                          setstmt->name ,
                                          GetUserNameFromId(GetUserId(), false));
 			SPI_connect();
@@ -193,7 +193,7 @@ pgsa_exec(
 		        if (ret_code != SPI_OK_SELECT)
                 		elog(ERROR, "SELECT FROM pg_set_acl failed");
 		        if (SPI_processed == 0)
-		                elog(ERROR, "pg_set_actl: permission denied for (%s,%s)",
+		                elog(ERROR, "pg_set_acl: permission denied for (%s,%s)",
 					    setstmt->name, 
 					    GetUserNameFromId(GetUserId(), false));
 
@@ -309,12 +309,12 @@ static bool pgsa_grant_internal(char *parameter_name, char *user_name)
 	appendStringInfo(&buf_select_user, "SELECT rolname FROM pg_authid WHERE rolname = '%s' and rolcanlogin = true", user_name);
 
 	initStringInfo(&buf_select_acl);
-	appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = '%s' and user_name = '%s'", 
+	appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = '%s' and user_name = '%s'", 
 			                  parameter_name,
 					  user_name);
 
 	initStringInfo(&buf_insert);
-	appendStringInfo(&buf_insert, "INSERT INTO pg_set_acl(parameter_name, user_name)");
+	appendStringInfo(&buf_insert, "INSERT INTO set_acl.privs(parameter_name, user_name)");
 	appendStringInfo(&buf_insert, " VALUES('%s','%s')", parameter_name, user_name);
 
 	SPI_connect();
@@ -333,7 +333,7 @@ static bool pgsa_grant_internal(char *parameter_name, char *user_name)
 
 	ret_code = SPI_execute(buf_select_acl.data, false, 0);
 	if (ret_code != SPI_OK_SELECT)
-		elog(ERROR, "SELECT FROM pg_set_acl failed");
+		elog(ERROR, "SELECT FROM set_acl.privs failed");
 	if (SPI_processed != 0)
 		elog(ERROR, "ACL already exist for (%s,%s)", parameter_name, user_name);
 
@@ -374,12 +374,12 @@ static bool pgsa_revoke_internal(char *parameter_name, char *user_name)
         appendStringInfo(&buf_select_user, "SELECT rolname FROM pg_authid WHERE rolname = '%s' and rolcanlogin = true", user_name);
 
         initStringInfo(&buf_select_acl);
-        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = '%s' and user_name = '%s'", 
+        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = '%s' and user_name = '%s'", 
                                           parameter_name,
                                           user_name);
 
         initStringInfo(&buf_delete);
-        appendStringInfo(&buf_delete, "DELETE FROM pg_set_acl WHERE parameter_name='%s' and user_name='%s'", parameter_name, user_name);
+        appendStringInfo(&buf_delete, "DELETE FROM set_acl.privs WHERE parameter_name='%s' and user_name='%s'", parameter_name, user_name);
 
         SPI_connect();
 
@@ -397,7 +397,7 @@ static bool pgsa_revoke_internal(char *parameter_name, char *user_name)
 
         ret_code = SPI_execute(buf_select_acl.data, false, 0);
         if (ret_code != SPI_OK_SELECT)
-                elog(ERROR, "SELECT FROM pg_set_acl failed");
+                elog(ERROR, "SELECT FROM set_acl.privs failed");
         if (SPI_processed != 1)
                 elog(ERROR, "Cannot find ACL for (%s,%s)", parameter_name, user_name);
 
@@ -436,7 +436,7 @@ static bool pgsa_read_acl_internal(char *parameter_name, char *user_name)
 	int ret_code;
 
         initStringInfo(&buf_select_acl);
-        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM pg_set_acl WHERE parameter_name = $1 and user_name = $2");
+        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = $1 and user_name = $2");
 
         SPI_connect();
 
@@ -445,11 +445,11 @@ static bool pgsa_read_acl_internal(char *parameter_name, char *user_name)
 	values[1] = CStringGetTextDatum(user_name);
 	ret_code = SPI_execute_plan(plan_ptr, values, NULL, false, 0);
         if (ret_code != SPI_OK_SELECT)
-                  elog(ERROR, "SELECT FROM pg_set_acl failed");
+                  elog(ERROR, "SELECT FROM set_acl.privs failed");
         if (SPI_processed == 0)
-                elog(INFO, "pg_set_actl: acl not found for (%s,%s)", parameter_name, user_name);
+                elog(INFO, "pg_set_acl: acl not found for (%s,%s)", parameter_name, user_name);
         if (SPI_processed == 1)
-                elog(INFO,  "pg_set_actl: acl found for (%s,%s)", parameter_name, user_name);
+                elog(INFO,  "pg_set_acl: acl found for (%s,%s)", parameter_name, user_name);
 
         SPI_finish();
 	return true;
