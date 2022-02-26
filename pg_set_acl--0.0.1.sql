@@ -14,6 +14,7 @@ CREATE TABLE set_acl.privs
 --
 GRANT USAGE ON SCHEMA set_acl TO PUBLIC;
 GRANT SELECT ON set_acl.privs TO PUBLIC;
+REVOKE EXECUTE ON FUNCTION set_config FROM PUBLIC;
 --
 CREATE FUNCTION set_acl.grant(cstring, cstring) RETURNS bool
  AS 'pg_set_acl.so', 'pgsa_grant'

@@ -21,12 +21,16 @@ select * from set_acl.privs;
 \c contrib_regression test
 set work_mem='1GB';
 show work_mem;
+select set_config('work_mem', '500MB', false);
+show work_mem;
 --
 \c contrib_regression postgres
 select set_acl.revoke('work_mem','test');
 --
 \c contrib_regression test
 set work_mem='1GB';
+select set_config('work_mem', '500MB', false);
+show work_mem;
 --
 \c contrib_regression postgres
 drop extension pg_set_acl;

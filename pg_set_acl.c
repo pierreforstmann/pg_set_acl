@@ -52,7 +52,6 @@ PG_MODULE_MAGIC;
 
 /* Saved hook values in case of unload */
 static ProcessUtility_hook_type prev_process_utility_hook = NULL;
-static object_access_hook_type prev_object_access_hook = NULL;
 
 static bool pgsa_enabled = true;
 
@@ -84,12 +83,6 @@ static void pgsa_exec(
 #endif
 );
 
-static void pgsa_object_access_hook(ObjectAccessType access,
-				    Oid classId,
-				    Oid objectId,
-				    int subId,
-				    void *arg);
-
 PG_FUNCTION_INFO_V1(pgsa_grant);
 PG_FUNCTION_INFO_V1(pgsa_revoke);
 PG_FUNCTION_INFO_V1(pgsa_read_acl);
@@ -112,9 +105,6 @@ _PG_init(void)
 		prev_process_utility_hook = ProcessUtility_hook;
  		ProcessUtility_hook = pgsa_exec;	
 
-		prev_object_access_hook = object_access_hook;
-		object_access_hook = pgsa_object_access_hook;
-
 		elog(LOG, "pg_set_acl:_PG_init(): pg_set_acl is enabled");
 	}
 
@@ -136,7 +126,6 @@ _PG_fini(void)
 
 	/* Uninstall hooks. */
 	ProcessUtility_hook = prev_process_utility_hook;
-	object_access_hook = prev_object_access_hook;
 
 	elog(LOG, "pg_set_acl: _PG_fini(): exit");
 }
@@ -253,45 +242,6 @@ pgsa_exec(
 #endif
 
 	elog(DEBUG1, "pg_set_acl: pgsa_exec: exit");
-}
-
-static void
-pgsa_object_access_hook(ObjectAccessType access,
-		        Oid classId,
-			Oid objectId,
-			int subId,
-			void *arg)
-{
-	CatCList   *catlist;
-	Oid	functionOid = 0;
-	int	i;
-
-	/*
-	 * retrieve OID of set_config function
-	 */
-	catlist = SearchSysCacheList1(PROCNAMEARGSNSP, CStringGetDatum("set_config"));	
-	for (i = 0; i < catlist->n_members; i++)
-	{
-		HeapTuple       proctup = &catlist->members[i]->tuple;
-		Form_pg_proc 	procform = (Form_pg_proc) GETSTRUCT(proctup);
-
-		functionOid = procform->oid;
-	}
-	ReleaseSysCacheList(catlist);
-
-	if ( i == 0 )
-		elog(FATAL, "pg_set_acl: function set_config not found");
-	if ( i > 1 )
-		elog(WARNING, "pg_set_acl: found %d functions set_config", i);
-
-
-
-	/*
-	 * set_config oid = 2078
-	 */
-	if (superuser() == false && access == OAT_FUNCTION_EXECUTE && objectId == functionOid)
-		elog(ERROR, "pg_set_acl: execution permission denied for set_config. ");
-
 }
 
 static bool pgsa_grant_internal(char *parameter_name, char *user_name)
