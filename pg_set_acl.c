@@ -177,7 +177,7 @@ pgsa_exec(
 
 			SPI_connect();
 			priv_exists = pgsa_check_priv(setstmt->name, GetUserNameFromId(GetUserId(), false));
-		        if (priv_exists == 0)
+		        if (priv_exists == false)
 		                elog(ERROR, "pg_set_acl: permission denied for (%s,%s)",
 					    setstmt->name, 
 					    GetUserNameFromId(GetUserId(), false));
