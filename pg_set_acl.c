@@ -87,6 +87,8 @@ PG_FUNCTION_INFO_V1(pgsa_grant);
 PG_FUNCTION_INFO_V1(pgsa_revoke);
 PG_FUNCTION_INFO_V1(pgsa_read_acl);
 
+static bool pgsa_check_priv(char *parameter_name, char *user_name);
+
 /*
  * Module load callback
  */
@@ -169,23 +171,16 @@ pgsa_exec(
 		setstmt = (VariableSetStmt *)parsetree;
 		if (setstmt->kind == VAR_SET_VALUE || setstmt->kind == VAR_SET_CURRENT)
 		{
-			StringInfoData buf_select_acl;
-			int ret_code;
+			bool priv_exists;
 
 			elog(DEBUG1, "pg_set_acl pgsa_exec: setstmt->name=%s", setstmt->name);
-			initStringInfo(&buf_select_acl);
-                        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = '%s' and user_name = '%s'",
-                                         setstmt->name ,
-                                         GetUserNameFromId(GetUserId(), false));
+
 			SPI_connect();
-			ret_code = SPI_execute(buf_select_acl.data, false, 0);
-		        if (ret_code != SPI_OK_SELECT)
-                		elog(ERROR, "SELECT FROM pg_set_acl failed");
-		        if (SPI_processed == 0)
+			priv_exists = pgsa_check_priv(setstmt->name, GetUserNameFromId(GetUserId(), false));
+		        if (priv_exists == 0)
 		                elog(ERROR, "pg_set_acl: permission denied for (%s,%s)",
 					    setstmt->name, 
 					    GetUserNameFromId(GetUserId(), false));
-
 			SPI_finish();
 
 		}
@@ -244,24 +239,66 @@ pgsa_exec(
 	elog(DEBUG1, "pg_set_acl: pgsa_exec: exit");
 }
 
-static bool pgsa_grant_internal(char *parameter_name, char *user_name)
+static bool pgsa_check_setting(char *parameter_name)
 {
-	StringInfoData 	buf_insert;
 	StringInfoData 	buf_select_parameter;
-	StringInfoData 	buf_select_user;
-	StringInfoData 	buf_select_acl;
-	int	ret_code;
+	int ret_code;
 
 	initStringInfo(&buf_select_parameter);
 	appendStringInfo(&buf_select_parameter, "SELECT name FROM pg_settings WHERE name = '%s' ", parameter_name);
 
+	ret_code = SPI_execute(buf_select_parameter.data, false, 0);
+	if (ret_code != SPI_OK_SELECT)
+		elog(ERROR, "SELECT FROM pg_settings failed");
+	if (SPI_processed != 1)
+		elog(ERROR, "Cannot find setting %s", parameter_name);
+	return true;
+
+}
+
+static bool pgsa_check_user(char *user_name)
+{
+	StringInfoData 	buf_select_user;
+	int ret_code;
+
 	initStringInfo(&buf_select_user);
 	appendStringInfo(&buf_select_user, "SELECT rolname FROM pg_authid WHERE rolname = '%s' and rolcanlogin = true", user_name);
+
+	ret_code = SPI_execute(buf_select_user.data, false, 0);
+	if (ret_code != SPI_OK_SELECT)
+		elog(ERROR, "SELECT FROM pg_authid failed");
+	if (SPI_processed != 1)
+		elog(ERROR, "Cannot find user %s", user_name);
+	return true;
+}
+
+static bool pgsa_check_priv(char *parameter_name, char *user_name)
+{
+	StringInfoData 	buf_select_acl;
+	int ret_code;
 
 	initStringInfo(&buf_select_acl);
 	appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = '%s' and user_name = '%s'", 
 			                  parameter_name,
 					  user_name);
+	ret_code = SPI_execute(buf_select_acl.data, false, 0);
+	if (ret_code != SPI_OK_SELECT)
+		elog(ERROR, "SELECT FROM set_acl.privs failed");
+	if (SPI_processed == 0)
+		return false;
+	else if (SPI_processed == 1)
+		return true;
+	else
+		elog(ERROR, "SELECT FROM set_acl.privs returned more than 1 row");
+
+}
+
+static bool pgsa_grant_internal(char *parameter_name, char *user_name)
+{
+	StringInfoData 	buf_insert;
+	int	ret_code;	
+	bool	priv_exists;
+
 
 	initStringInfo(&buf_insert);
 	appendStringInfo(&buf_insert, "INSERT INTO set_acl.privs(parameter_name, user_name)");
@@ -269,24 +306,12 @@ static bool pgsa_grant_internal(char *parameter_name, char *user_name)
 
 	SPI_connect();
 
-	ret_code = SPI_execute(buf_select_parameter.data, false, 0);
-	if (ret_code != SPI_OK_SELECT)
-		elog(ERROR, "SELECT FROM pg_settings failed");
-	if (SPI_processed != 1)
-		elog(ERROR, "Cannot find setting %s", parameter_name);
+	pgsa_check_setting(parameter_name);
+	pgsa_check_user(user_name);
+	priv_exists = pgsa_check_priv(parameter_name, user_name);	
 
-	ret_code = SPI_execute(buf_select_user.data, false, 0);
-	if (ret_code != SPI_OK_SELECT)
-		elog(ERROR, "SELECT FROM pg_authid failed");
-	if (SPI_processed != 1)
-		elog(ERROR, "Cannot find user %s", user_name);
-
-	ret_code = SPI_execute(buf_select_acl.data, false, 0);
-	if (ret_code != SPI_OK_SELECT)
-		elog(ERROR, "SELECT FROM set_acl.privs failed");
-	if (SPI_processed != 0)
+	if (priv_exists == true)
 		elog(ERROR, "ACL already exist for (%s,%s)", parameter_name, user_name);
-
 
 	ret_code = SPI_execute(buf_insert.data, false, 0);
 	if (ret_code != SPI_OK_INSERT)
@@ -312,43 +337,18 @@ Datum pgsa_grant(PG_FUNCTION_ARGS)
 static bool pgsa_revoke_internal(char *parameter_name, char *user_name)
 {
         StringInfoData  buf_delete;
-        StringInfoData  buf_select_parameter;
-        StringInfoData  buf_select_user;
-        StringInfoData  buf_select_acl;
         int     ret_code;
-
-        initStringInfo(&buf_select_parameter);
-        appendStringInfo(&buf_select_parameter, "SELECT name FROM pg_settings WHERE name = '%s' ", parameter_name);
-
-        initStringInfo(&buf_select_user);
-        appendStringInfo(&buf_select_user, "SELECT rolname FROM pg_authid WHERE rolname = '%s' and rolcanlogin = true", user_name);
-
-        initStringInfo(&buf_select_acl);
-        appendStringInfo(&buf_select_acl, "SELECT parameter_name, user_name FROM set_acl.privs WHERE parameter_name = '%s' and user_name = '%s'", 
-                                          parameter_name,
-                                          user_name);
+	bool	priv_exists;
 
         initStringInfo(&buf_delete);
         appendStringInfo(&buf_delete, "DELETE FROM set_acl.privs WHERE parameter_name='%s' and user_name='%s'", parameter_name, user_name);
 
         SPI_connect();
 
-        ret_code = SPI_execute(buf_select_parameter.data, false, 0); 
-        if (ret_code != SPI_OK_SELECT)
-                elog(ERROR, "SELECT FROM pg_settings failed");
-        if (SPI_processed != 1)
-                elog(ERROR, "Cannot find setting %s", parameter_name);
-
-        ret_code = SPI_execute(buf_select_user.data, false, 0);
-        if (ret_code != SPI_OK_SELECT)
-                elog(ERROR, "SELECT FROM pg_authid failed");
-        if (SPI_processed != 1)
-                elog(ERROR, "Cannot find user %s", user_name);
-
-        ret_code = SPI_execute(buf_select_acl.data, false, 0);
-        if (ret_code != SPI_OK_SELECT)
-                elog(ERROR, "SELECT FROM set_acl.privs failed");
-        if (SPI_processed != 1)
+	pgsa_check_setting(parameter_name);
+	pgsa_check_user(user_name);
+	priv_exists = pgsa_check_priv(parameter_name, user_name);
+        if (priv_exists == false)
                 elog(ERROR, "Cannot find ACL for (%s,%s)", parameter_name, user_name);
 
 
