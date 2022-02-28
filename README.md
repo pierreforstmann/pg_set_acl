@@ -31,6 +31,29 @@ create extension pg_set_acl;
 `pg_set_acl` has no specific GUC setting.
 Note that installing `pg_set_acl` removes execution privilege on `set_config` function from PUBLIC.
 
+`pg_set_acl` checks that all SET commands are in the access control list materialied by `set_acl.privs' table (for all users who are not superusers):
+
+```
+ \d set_acl.privs;
+                   Table "set_acl.privs"
+     Column     | Type | Collation | Nullable |   Default   
+----------------+------+-----------+----------+-------------
+ privilege      | text |           |          | 'SET'::text
+ parameter_name | text |           | not null | 
+ user_name      | text |           | not null | 
+
+# 
+```
+If this table is empty, only superusers can use the SET command. In other words, user must have been explicitly granted privilege to  use SET command with a given setting using `set_acl.grant` function:
+```
+select set_acl.grant(setting, user);
+```
+To revoke privilege to use SET command with a given setting use:
+```
+select set_acl.revoke(setting, user);
+```
+Only superusers can execute `set_acl.grant` and `set_acl.revoke`.
+
 # Example
 ```
 testdb=# \c testdb postgres
