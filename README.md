@@ -31,7 +31,7 @@ create extension pg_set_acl;
 `pg_set_acl` has no specific GUC setting.
 Note that installing `pg_set_acl` removes execution privilege on `set_config` function from PUBLIC.
 
-`pg_set_acl` checks that all SET commands are in the access control list materialized by `set_acl.privs' table (for all users who are not superusers):
+`pg_set_acl` checks that all SET commands are in the access control list materialized by `set_acl.privs` table (for all users who are not superusers):
 
 ```
  \d set_acl.privs;
