@@ -173,15 +173,19 @@ pgsa_exec(
 		{
 			bool priv_exists;
 
-			elog(DEBUG1, "pg_set_acl pgsa_exec: setstmt->name=%s", setstmt->name);
+			if (superuser() == false)
+			{
 
-			SPI_connect();
-			priv_exists = pgsa_check_priv(setstmt->name, GetUserNameFromId(GetUserId(), false));
-		        if (priv_exists == false)
-		                elog(ERROR, "pg_set_acl: permission denied for (%s,%s)",
-					    setstmt->name, 
-					    GetUserNameFromId(GetUserId(), false));
-			SPI_finish();
+				elog(DEBUG1, "pg_set_acl pgsa_exec: setstmt->name=%s", setstmt->name);
+
+				SPI_connect();
+				priv_exists = pgsa_check_priv(setstmt->name, GetUserNameFromId(GetUserId(), false));
+			        if (priv_exists == false)
+		        	        elog(ERROR, "pg_set_acl: permission denied for (%s,%s)",
+						    setstmt->name, 
+						    GetUserNameFromId(GetUserId(), false));
+				SPI_finish();
+			}
 
 		}
 	}

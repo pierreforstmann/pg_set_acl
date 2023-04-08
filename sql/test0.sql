@@ -6,6 +6,10 @@ drop extension if exists pg_set_acl;
 --
 create extension pg_set_acl;
 --
+set search_path='set_acl';
+--
+set search_path='"$user", public';
+--
 select set_acl.grant('s','u');
 select set_acl.grant('work_mem','u');
 --
