@@ -21,6 +21,10 @@ create user test;
 \c contrib_regression test
 set work_mem='1GB';
 ERROR:  pg_set_acl: permission denied for (work_mem,test)
+reset work_mem;
+ERROR:  pg_set_acl: permission denied for (work_mem,test)
+reset all;
+ERROR:  pg_set_acl: permission denied for ((null),test)
 --
 \c contrib_regression postgres 
 select set_acl.grant('work_mem','test');
@@ -52,6 +56,15 @@ show work_mem;
  1GB
 (1 row)
 
+reset work_mem;
+show work_mem;
+ work_mem 
+----------
+ 4MB
+(1 row)
+
+reset all;
+ERROR:  pg_set_acl: permission denied for ((null),test)
 --
 \c contrib_regression postgres
 select set_acl.revoke('work_mem','test');
@@ -72,6 +85,10 @@ show work_mem;
  4MB
 (1 row)
 
+reset work_mem;
+ERROR:  pg_set_acl: permission denied for (work_mem,test)
+reset all;
+ERROR:  pg_set_acl: permission denied for ((null),test)
 --
 \c contrib_regression postgres
 drop extension pg_set_acl;

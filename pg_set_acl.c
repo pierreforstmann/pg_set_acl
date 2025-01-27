@@ -6,7 +6,7 @@
  * This program is open source, licensed under the PostgreSQL license.
  * For license terms, see the LICENSE file.
  *          
- * Copyright (c) 2022 Pierre Forstmann.
+ * Copyright (c) 2025 Pierre Forstmann.
  *            
  *-------------------------------------------------------------------------
 */
@@ -169,7 +169,8 @@ pgsa_exec(
 	if (nodeTag(parsetree) == T_VariableSetStmt)
 	{
 		setstmt = (VariableSetStmt *)parsetree;
-		if (setstmt->kind == VAR_SET_VALUE || setstmt->kind == VAR_SET_CURRENT)
+		if (setstmt->kind == VAR_SET_VALUE || setstmt->kind == VAR_SET_CURRENT || setstmt->kind == VAR_RESET ||
+		    setstmt->kind == VAR_RESET_ALL)
 		{
 			bool priv_exists;
 
