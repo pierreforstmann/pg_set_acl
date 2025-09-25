@@ -13,7 +13,7 @@ make
 make install
 ```
 
-This extension has been validated with PostgreSQL 10, 11, 12, 13, 14, 15, 16 and 17.
+This extension has been validated with PostgreSQL 10, 11, 12, 13, 14, 15, 16, 17 and 18.
 
 ## PostgreSQL setup
 
